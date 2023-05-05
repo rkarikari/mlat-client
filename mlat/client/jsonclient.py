@@ -397,10 +397,12 @@ class JsonServerConnection(mlat.client.net.ReconnectingConnection):
                 return
             raise
 
+        if self.state == 'disconnected':
+            return
+
         if not moredata:
-            log("handle_read: moredata is falsy, reconnecting")
+            log("handle_read: moredata is falsy, closing connection")
             self.close()
-            self.schedule_reconnect()
             return
 
         self.last_data_received = monotonic_time()
