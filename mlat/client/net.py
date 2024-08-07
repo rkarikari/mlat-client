@@ -68,6 +68,10 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
         self.reconnect_at = None
         self.last_try = 0
 
+        self.failures = 0
+        self.suppress_errors = 0
+        self.suppress_until = 0
+
     def heartbeat(self, now):
         if self.reconnect_at is None or self.reconnect_at > now:
             return
@@ -105,6 +109,7 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
     def schedule_reconnect(self):
         if self.reconnect_at is None:
             mono = monotonic_time()
+            other_addresses = 0
 
             if len(self.addrlist) > 0:
                 # we still have more addresses to try
@@ -115,6 +120,7 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
                 # so the caller can clean up the old
                 # socket and discard the events.
                 interval = 0.5
+                other_addresses = 1
             else:
 
                 interval = self.last_try + self.reconnect_interval - mono + 2 * random.random()
@@ -122,7 +128,22 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
                 if interval < 4:
                     interval = 2 + 2 * random.random()
 
-            log('Reconnecting in {seconds:.1f} seconds'.format(seconds=interval))
+            self.failures += 1
+            if self.failures == 5:
+                self.suppress_errors = 1
+                self.suppress_until = mono + 900
+                log('Connection retries will continue, further messages about this connection will be suppressed for 15 minutes')
+
+            if self.suppress_errors and mono > self.suppress_until:
+                # reset error suppression
+                self.failures = 0
+                self.suppress_errors = 0
+                self.suppress_until = 0
+
+
+            if not self.suppress_errors and not other_addresses:
+                log(f'Reconnecting in {interval:.1f} seconds')
+
             self.reconnect_at = mono + interval
 
     def refresh_address_list(self):
@@ -159,7 +180,8 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
             self.create_socket(a_family, a_type)
             self.connect(a_sockaddr)
         except socket.error as e:
-            log('Connection to {host}:{port} failed: {ex!s}', host=self.host, port=self.port, ex=e)
+            if not self.suppress_errors:
+                log('Connection to {host}:{port} failed: {ex!s}', host=self.host, port=self.port, ex=e)
             self.close()
 
     def handle_connect(self):
@@ -179,10 +201,11 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
     def handle_error(self):
         t, v, tb = sys.exc_info()
         if isinstance(v, IOError):
-            log('Connection to {host}:{port} lost: {ex!s}',
-                host=self.host,
-                port=self.port,
-                ex=v)
+            if not self.suppress_errors:
+                log('Connection to {host}:{port} lost: {ex!s}',
+                    host=self.host,
+                    port=self.port,
+                    ex=v)
         else:
             log_exc('Unexpected exception on connection to {host}:{port}',
                     host=self.host,
