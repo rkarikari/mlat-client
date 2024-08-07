@@ -347,7 +347,8 @@ class JsonServerConnection(mlat.client.net.ReconnectingConnection):
         pass
 
     def start_connection(self):
-        log('Connected to multilateration server at {0}:{1}, handshaking', self.host, self.port)
+        if not self.suppress_errors:
+            log('Connected to multilateration server at {0}:{1}, handshaking', self.host, self.port)
         self.state = 'handshaking'
         self.last_data_received = monotonic_time()
 
@@ -372,6 +373,9 @@ class JsonServerConnection(mlat.client.net.ReconnectingConnection):
         self.writebuf += (json.dumps(handshake_msg, sort_keys=True) + 16 * '        ' + '\n').encode('ascii')   # linebuf not used yet
         self.consume_readbuf = self.consume_readbuf_uncompressed
         self.handle_server_line = self.handle_handshake_response
+
+        if self.suppress_errors:
+            self.reset_error_suppression()
 
     def heartbeat(self, now):
         super().heartbeat(now)

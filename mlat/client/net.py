@@ -72,6 +72,16 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
         self.suppress_errors = 0
         self.suppress_until = 0
 
+    def set_error_suppression(self):
+        self.suppress_errors = 1
+        self.suppress_until = monotonic_time() + 900
+        log('Connection retries will continue, further messages about this connection will be suppressed for 15 minutes')
+
+    def reset_error_suppression(self):
+        self.failures = 0
+        self.suppress_errors = 0
+        self.suppress_until = 0
+
     def heartbeat(self, now):
         if self.reconnect_at is None or self.reconnect_at > now:
             return
@@ -88,7 +98,7 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
             pass
 
         if self.state != 'disconnected':
-            if not manual_close:
+            if not manual_close and not self.suppress_errors:
                 log('Lost connection to {host}:{port}', host=self.host, port=self.port)
 
             self.state = 'disconnected'
@@ -130,15 +140,11 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
 
             self.failures += 1
             if self.failures == 5:
-                self.suppress_errors = 1
-                self.suppress_until = mono + 900
-                log('Connection retries will continue, further messages about this connection will be suppressed for 15 minutes')
+                self.set_error_suppression()
 
             if self.suppress_errors and mono > self.suppress_until:
                 # reset error suppression
-                self.failures = 0
-                self.suppress_errors = 0
-                self.suppress_until = 0
+                self.reset_error_suppression()
 
 
             if not self.suppress_errors and not other_addresses:
