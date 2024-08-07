@@ -374,9 +374,6 @@ class JsonServerConnection(mlat.client.net.ReconnectingConnection):
         self.consume_readbuf = self.consume_readbuf_uncompressed
         self.handle_server_line = self.handle_handshake_response
 
-        if self.suppress_errors:
-            self.reset_error_suppression()
-
     def heartbeat(self, now):
         super().heartbeat(now)
 
@@ -464,6 +461,8 @@ class JsonServerConnection(mlat.client.net.ReconnectingConnection):
 
         if 'motd' in response:
             log('Server says: {0}', response['motd'])
+            if self.suppress_errors:
+                self.reset_error_suppression()
 
         compress = response.get('compress', 'none')
         if response['compress'] == 'none':
