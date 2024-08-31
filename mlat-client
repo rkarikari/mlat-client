@@ -106,7 +106,7 @@ location pin from the coverage maps.""",
     uuid_path = None
     uuid = None
     if args.uuid is not None:
-        uuid = [ args.uuid ]
+        uuid = args.uuid
     if args.uuid_path is not None:
         uuid_path = [ args.uuid_path ]
 
