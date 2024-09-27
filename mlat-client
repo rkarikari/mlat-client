@@ -79,6 +79,10 @@ location pin from the coverage maps.""",
                         dest='uuid',
                         help="Send this UUID to the server",
                         required=False)
+    server.add_argument('--stats-json',
+                        dest='stats_path',
+                        help="Write some statistics to this file",
+                        required=False)
 
     logOptions = parser.add_argument_group('Log Options')
     logOptions.add_argument('--log-timestamps',
@@ -103,17 +107,11 @@ location pin from the coverage maps.""",
     receiver = ReceiverConnection(host=args.input_connect[0], port=args.input_connect[1],
                                   mode=options.connection_mode(args))
 
-    uuid_path = None
-    uuid = None
-    if args.uuid is not None:
-        uuid = args.uuid
-    if args.uuid_path is not None:
-        uuid_path = [ args.uuid_path ]
-
     server = JsonServerConnection(host=args.server[0],
                                   port=args.server[1],
-                                  uuid_path=uuid_path,
-                                  uuid=uuid,
+                                  stats_path=args.stats_path,
+                                  uuid_path=args.uuid_path,
+                                  uuid=args.uuid,
                                   handshake_data={'lat': args.lat,
                                                   'lon': args.lon,
                                                   'alt': args.alt,

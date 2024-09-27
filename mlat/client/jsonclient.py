@@ -27,6 +27,8 @@ import zlib
 import socket
 import errno
 import json
+import os
+import traceback
 
 import mlat.client.version
 import mlat.client.net
@@ -179,9 +181,8 @@ class JsonServerConnection(mlat.client.net.ReconnectingConnection):
     heartbeat_interval = 120.0
     inactivity_timeout = 60.0
 
-    def __init__(self, host, port, uuid_path, uuid, handshake_data, offer_zlib, offer_udp, return_results):
+    def __init__(self, host, port, stats_path, uuid_path, uuid, handshake_data, offer_zlib, offer_udp, return_results):
         super().__init__(host, port)
-        self.uuid_path = uuid_path or []
         self.handshake_data = handshake_data
         self.offer_zlib = offer_zlib
         self.offer_udp = offer_udp
@@ -190,18 +191,18 @@ class JsonServerConnection(mlat.client.net.ReconnectingConnection):
         self.udp_transport = None
         self.last_clock_reset = time.monotonic()
         self.uuid = None
+        self.last_bad_sync = -1
+        self.stats_path = stats_path
 
 
         if uuid is not None:
             self.uuid = uuid
-        else:
-            for path in self.uuid_path:
-                try:
-                    with open(path) as file:
-                        self.uuid = file.readline().rstrip('\n')
-                    break
-                except Exception:
-                    pass
+        elif uuid_path is not None:
+            try:
+                with open(uuid_path) as file:
+                    self.uuid = file.readline().rstrip('\n')
+            except Exception:
+                pass
 
 
         self.reset_connection()
@@ -573,10 +574,28 @@ class JsonServerConnection(mlat.client.net.ReconnectingConnection):
                                                 anon=False,
                                                 modeac=False)
         elif 'stats' in request:
-            stats = request['stats']
-            if stats.get('bad_sync_timeout', 0) > 0 or self.coordinator.print_server_statistics:
-                log('peer_count: {0:3.0f} outlier_percent: {1:2.1f} bad_sync_timeout: {2:3.0f}',
-                        stats.get("peer_count"), stats.get("outlier_percent"), stats.get("bad_sync_timeout"))
-                self.coordinator.print_server_statistics = False
+            try:
+                stats = request['stats']
+                stats['now'] = round(time.time())
+
+                if stats.get('bad_sync_timeout', 0) > 0:
+                    self.last_bad_sync = stats['now']
+
+                stats['last_bad_sync'] = self.last_bad_sync
+
+
+                if stats.get('bad_sync_timeout', 0) > 0 or self.coordinator.print_server_statistics:
+                    log('peer_count: {0:3.0f} outlier_percent: {1:2.1f} bad_sync_timeout: {2:3.0f}',
+                            stats.get("peer_count"), stats.get("outlier_percent"), stats.get("bad_sync_timeout"))
+                    self.coordinator.print_server_statistics = False
+
+                if self.stats_path:
+                    tmp = self.stats_path + ".tmp"
+                    with open(tmp, "w") as f:
+                        json.dump(stats, f, indent=2)
+                        os.rename(tmp, self.stats_path)
+
+            except Exception as exc:
+                traceback.print_exception(exc)
         else:
             log('ignoring request from server: {0}', request)
