@@ -191,6 +191,10 @@ class JsonServerConnection(mlat.client.net.ReconnectingConnection):
         self.udp_transport = None
         self.last_clock_reset = time.monotonic()
         self.uuid = None
+
+        self.sync_states = []
+        self.states_times = []
+
         self.last_bad_sync = -1
         self.stats_path = stats_path
 
@@ -576,10 +580,43 @@ class JsonServerConnection(mlat.client.net.ReconnectingConnection):
         elif 'stats' in request:
             try:
                 stats = request['stats']
-                stats['now'] = round(time.time())
+                now = stats['now'] = round(time.time())
 
                 if stats.get('bad_sync_timeout', 0) > 0:
+                    self.sync_states.append(-1)
                     self.last_bad_sync = stats['now']
+                elif stats.get('peer_count', 0) > 0:
+                    self.sync_states.append(1)
+                else:
+                    self.sync_states.append(0)
+
+                self.states_times.append(now)
+
+                # keep these lists limited to 1h
+                if now - self.states_times[0] > 3600:
+                    self.sync_states.pop(0)
+                    self.states_times.pop(0)
+
+                good_sync_count = 0
+                bad_sync_count = 0
+                no_sync_count = 0
+
+                count = len(self.sync_states)
+                for state in self.sync_states:
+                    if state == 1:
+                        good_sync_count += 1
+                    elif state == -1:
+                        bad_sync_count += 1
+                    elif state == 0:
+                        no_sync_count += 1
+
+                if count > 0:
+                    stats['good_sync_percentage_last_hour'] = round(good_sync_count / count * 100)
+                    stats['bad_sync_percentage_last_hour'] = round(bad_sync_count / count * 100)
+                else:
+                    stats['good_sync_percentage_last_hour'] = -1
+                    stats['bad_sync_percentage_last_hour'] = -1
+
 
                 stats['last_bad_sync'] = self.last_bad_sync
 
