@@ -5,7 +5,7 @@ server that resolves the transmitter position by multilateration of the same
 message received by multiple clients.
 
 The corresponding server code is available at
-https://github.com/wiedehopf/mlat-server.
+https://github.com/rkarikari/mlat-server.
 
 ## Building
 
