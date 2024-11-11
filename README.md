@@ -12,7 +12,7 @@ https://github.com/rkarikari/mlat-server.
 Due to conflicting packages with the same name, it's recommended to install in a Python virtual environment.
 First set the direcory you'd like to install to, if that path is not writeable by your user, use `sudo su` to become root first.
 ```
-VENV=/usr/local/share/wiedehopf-mlat-client/venv
+VENV=/usr/local/share/adsb9g/venv
 ```
 Now the build / install, it's not a bad idea to recreate the virtual environment when rebuilding:
 ```
@@ -28,7 +28,7 @@ Or you can run install.sh provided in this repository.
 
 To run it, invoke:
 ```
-/usr/local/share/wiedehopf-mlat-client/venv/bin/mlat-client
+/usr/local/share/adsb9g/venv/bin/mlat-client
 ```
 
 
