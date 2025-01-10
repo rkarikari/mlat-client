@@ -83,6 +83,10 @@ location pin from the coverage maps.""",
                         dest='stats_path',
                         help="Write some statistics to this file",
                         required=False)
+    server.add_argument('--stats-interval',
+                        dest='stats_interval',
+                        help="Interval between statistic outputs in seconds",
+                        default=900)
 
     logOptions = parser.add_argument_group('Log Options')
     logOptions.add_argument('--log-timestamps',
@@ -125,7 +129,8 @@ location pin from the coverage maps.""",
                                   return_results=(len(outputs) > 0))
 
     coordinator = Coordinator(receiver=receiver, server=server, outputs=outputs, freq=options.clock_frequency(args),
-                              allow_anon=args.allow_anon_results, allow_modeac=args.allow_modeac_results)
+                              allow_anon=args.allow_anon_results, allow_modeac=args.allow_modeac_results,
+                              stats_interval=float(args.stats_interval))
 
     server.start()
     coordinator.run_forever()

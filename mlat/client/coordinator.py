@@ -53,17 +53,17 @@ class Aircraft:
 class Coordinator:
     update_interval = 4.5
     report_interval = 4.0 # in multiples update_interval
-    stats_interval = 900.0
     position_expiry_age = 30.0
     expiry_age = 120.0
 
-    def __init__(self, receiver, server, outputs, freq, allow_anon, allow_modeac):
+    def __init__(self, receiver, server, outputs, freq, allow_anon, allow_modeac, stats_interval):
         self.receiver = receiver
         self.server = server
         self.outputs = outputs
         self.freq = freq
         self.allow_anon = allow_anon
         self.allow_modeac = allow_modeac
+        self.stats_interval = stats_interval
 
         self.aircraft = {}
         self.requested_traffic = set()
@@ -154,7 +154,7 @@ class Coordinator:
                     self.send_aircraft_report()
                     self.send_rate_report(now)
 
-        if now >= self.next_stats:
+        if now >= self.next_stats and self.stats_interval > 0:
             self.next_stats = now + self.stats_interval
             self.periodic_stats(now)
 
