@@ -17,6 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import sys
 import argparse
 
 import mlat.client.version
@@ -48,8 +49,7 @@ def main():
                           type=options.altitude,
                           help="""
 Altitude of the receiver (height above ellipsoid).  Required. Defaults to metres, but units may
-specified with a 'ft' or 'm' suffix. (Except if they're negative due to option
-parser weirdness. Sorry!)""",
+specified with a 'ft' or 'm' suffix.""",
                           required=True)
     location.add_argument('--privacy',
                           help="""
@@ -95,7 +95,28 @@ location pin from the coverage maps.""",
                           action='store_true',
                           default=False)
 
-    args = parser.parse_args()
+    # to work around parsing issues, we remove the unit from the altitude
+    # if the altitude argument has no unit, it's assumed to be in meters
+    mangledArgs = []
+    isAlt = False
+    for arg in sys.argv[1:]:
+        if isAlt:
+            if arg == '60440ft':
+                util.log('<3>Altitude not configured, please configure and reboot')
+                time.sleep(3600)
+                raise SystemExit
+            elif arg.endswith('m'):
+                alt = float(arg[:-1])
+            elif arg.endswith('ft'):
+                alt = float(arg[:-2]) * 0.3048
+            else:
+                alt = float(arg)
+            mangledArgs.append(str(alt))
+        else:
+            mangledArgs.append(arg)
+        isAlt = (arg == "--alt")
+
+    args = parser.parse_args(args=mangledArgs)
 
     util.suppress_log_timestamps = not args.log_timestamps
 
@@ -103,6 +124,8 @@ location pin from the coverage maps.""",
         util.log("<3>Latitude / Longitude not set, please configure and reboot")
         time.sleep(3600)
         raise SystemExit
+
+    #util.log(f"alt: {args.alt}")
 
     util.log("mlat-client {version} starting up", version=mlat.client.version.CLIENT_VERSION)
 
