@@ -130,7 +130,7 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
                     interval = 2 + 2 * random.random()
 
             self.failures += 1
-            if self.failures == 5:
+            if self.failures == 3:
                 self.set_error_suppression()
 
             if self.suppress_errors and mono > self.suppress_until:
@@ -139,7 +139,9 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
 
 
             if not self.suppress_errors and not other_addresses:
-                log(f'Reconnecting in {interval:.1f} seconds')
+                #log(f'Reconnecting in {interval:.1f} seconds')
+                pass
+
 
             self.reconnect_at = mono + interval
 
