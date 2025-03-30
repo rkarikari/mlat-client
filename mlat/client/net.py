@@ -66,7 +66,7 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
     def set_error_suppression(self):
         self.suppress_errors = 1
         self.suppress_until = monotonic_time() + 900
-        log('Connection retries will continue, further messages about this connection will be suppressed for 15 minutes')
+        log('Connection retries will continue, further messages (even success) about this connection will be suppressed for 15 minutes')
 
     def reset_error_suppression(self):
         self.failures = 0
@@ -101,7 +101,8 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
 
     def disconnect(self, reason):
         if self.state != 'disconnected':
-            log('Disconnecting from {host}:{port}: {reason}', host=self.host, port=self.port, reason=reason)
+            if not self.suppress_errors:
+                log('Disconnecting from {host}:{port}: {reason}', host=self.host, port=self.port, reason=reason)
             self.close(True)
 
     def writable(self):
