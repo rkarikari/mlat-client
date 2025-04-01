@@ -215,6 +215,10 @@ class Coordinator:
             self.server.send_rate_report(rate_report)
 
     def periodic_stats(self, now):
+        if self.server.state == "disconnected" or self.server.state == "handshaking":
+            global_stats.reset(now)
+            return
+
         global_stats.log_and_reset(self)
 
         adsb_req = adsb_total = modes_req = modes_total = 0

@@ -62,14 +62,15 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
         self.failures = 0
         self.suppress_errors = 0
         self.suppress_until = 0
+        self.motdShown = 0
 
     def set_error_suppression(self):
         self.suppress_errors = 1
         self.suppress_until = monotonic_time() + 900
-        log('Connection retries will continue, further messages (even success) about this connection will be suppressed for 15 minutes')
+        log('Connection retries will continue, further messages about this connection will be suppressed for 15 minutes')
 
     def reset_error_suppression(self):
-        self.failures = 0
+        self.failures = 2
         self.suppress_errors = 0
         self.suppress_until = 0
 
@@ -82,6 +83,15 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
         self.reconnect()
 
     def close(self, manual_close=False):
+        mono = monotonic_time()
+        if mono - self.last_try < 5 * 60:
+            # connections shorter than 5 minutes count as failures
+            self.failures += 1
+            #log(f"failures {self.failures}")
+
+        if self.failures == 3:
+            self.set_error_suppression()
+
         try:
             asyncore.dispatcher.close(self)
         except AttributeError:
@@ -130,19 +140,9 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
                 if interval < 4:
                     interval = 2 + 2 * random.random()
 
-            self.failures += 1
-            if self.failures == 3:
-                self.set_error_suppression()
-
-            if self.suppress_errors and mono > self.suppress_until:
-                # reset error suppression
-                self.reset_error_suppression()
-
-
             if not self.suppress_errors and not other_addresses:
                 #log(f'Reconnecting in {interval:.1f} seconds')
                 pass
-
 
             self.reconnect_at = mono + interval
 
@@ -153,7 +153,13 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
         if self.state != 'disconnected':
             self.disconnect('About to reconnect')
 
-        self.last_try = monotonic_time()
+        mono = monotonic_time()
+
+        if self.suppress_errors and mono > self.suppress_until:
+            # reset error suppression
+            self.reset_error_suppression()
+
+        self.last_try = mono
         try:
             self.reset_connection()
 
