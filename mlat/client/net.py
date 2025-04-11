@@ -60,18 +60,25 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
         self.last_try = 0
 
         self.failures = 0
-        self.suppress_errors = 0
+        self._suppress_errors = 0
         self.suppress_until = 0
+        self.motdShown = 0
+
+    @property
+    def suppress_errors(self):
+        mono = monotonic_time()
+        if self._suppress_errors and mono > self.suppress_until:
+            # reset error suppression
+            self.failures = 2
+            self._suppress_errors = 0
+            self.suppress_until = 0
+
+        return self._suppress_errors
 
     def set_error_suppression(self):
-        self.suppress_errors = 1
+        self._suppress_errors = 1
         self.suppress_until = monotonic_time() + 900
         log('Connection retries will continue, further messages about this connection will be suppressed for 15 minutes')
-
-    def reset_error_suppression(self):
-        self.failures = 0
-        self.suppress_errors = 0
-        self.suppress_until = 0
 
     def heartbeat(self, now):
         if self.reconnect_at is None or self.reconnect_at > now:
@@ -82,6 +89,15 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
         self.reconnect()
 
     def close(self, manual_close=False):
+        mono = monotonic_time()
+        if mono - self.last_try < 5 * 60:
+            # connections shorter than 5 minutes count as failures
+            self.failures += 1
+            #log(f"failures {self.failures}")
+
+        if self.failures == 3:
+            self.set_error_suppression()
+
         try:
             asyncore.dispatcher.close(self)
         except AttributeError:
@@ -101,7 +117,8 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
 
     def disconnect(self, reason):
         if self.state != 'disconnected':
-            log('Disconnecting from {host}:{port}: {reason}', host=self.host, port=self.port, reason=reason)
+            if not self.suppress_errors:
+                log('Disconnecting from {host}:{port}: {reason}', host=self.host, port=self.port, reason=reason)
             self.close(True)
 
     def writable(self):
@@ -129,17 +146,9 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
                 if interval < 4:
                     interval = 2 + 2 * random.random()
 
-            self.failures += 1
-            if self.failures == 5:
-                self.set_error_suppression()
-
-            if self.suppress_errors and mono > self.suppress_until:
-                # reset error suppression
-                self.reset_error_suppression()
-
-
             if not self.suppress_errors and not other_addresses:
-                log(f'Reconnecting in {interval:.1f} seconds')
+                #log(f'Reconnecting in {interval:.1f} seconds')
+                pass
 
             self.reconnect_at = mono + interval
 
@@ -150,7 +159,9 @@ class ReconnectingConnection(LoggingMixin, asyncore.dispatcher):
         if self.state != 'disconnected':
             self.disconnect('About to reconnect')
 
-        self.last_try = monotonic_time()
+        mono = monotonic_time()
+
+        self.last_try = mono
         try:
             self.reset_connection()
 

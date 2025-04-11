@@ -459,15 +459,17 @@ class JsonServerConnection(mlat.client.net.ReconnectingConnection):
             self.reconnect_interval = response['reconnect_in']
 
         if 'deny' in response:
-            log('Server explicitly rejected our connection, saying:')
-            for reason in response['deny']:
-                log('  {0}', reason)
+            if not self.suppress_errors:
+                log('Server explicitly rejected our connection, saying:')
+                for reason in response['deny']:
+                    log('  {0}', reason)
             raise IOError('Server rejected our connection attempt')
 
         if 'motd' in response:
-            log('Server says: {0}', response['motd'])
-            if self.suppress_errors:
-                self.reset_error_suppression()
+            # show motto of the day only once per day, not on every connect
+            if monotonic_time() - self.motdShown > 24 * 60 * 60:
+                self.motdShown = monotonic_time()
+                log('Server says: {0}', response['motd'])
 
         compress = response.get('compress', 'none')
         if response['compress'] == 'none':
